@@ -96,7 +96,6 @@ public final class TerminalRenderer {
 
                 final float measuredCodePointWidth = (codePoint < asciiMeasures.length) ? asciiMeasures[codePoint] : mTextPaint.measureText(line, currentCharIndex, charsForCodePoint);
                 final boolean fontWidthMismatch = Math.abs(measuredCodePointWidth / mFontWidth - codePointWcWidth) > 0.01;
-
                 if (style != lastRunStyle || insideCursor != lastRunInsideCursor || insideSelection != lastRunInsideSelection || fontWidthMismatch != lastRunFontWidthMismatch) {
                     if (column != 0) {
                         final int columnWidthSinceLastRun = column - lastRunStartColumn;
@@ -180,12 +179,6 @@ public final class TerminalRenderer {
             savedMatrix = true;
         }
 
-        // 🚫 Removed background drawing to keep transparency
-        // if (backColor != palette[TextStyle.COLOR_INDEX_BACKGROUND]) {
-        //     mTextPaint.setColor(backColor);
-        //     canvas.drawRect(left, y - mFontLineSpacingAndAscent + mFontAscent, right, y, mTextPaint);
-        // }
-
         if (cursor != 0) {
             mTextPaint.setColor(cursor);
             float cursorHeight = mFontLineSpacingAndAscent - mFontAscent;
@@ -211,8 +204,11 @@ public final class TerminalRenderer {
             mTextPaint.setStrikeThruText(strikeThrough);
             mTextPaint.setColor(foreColor);
 
-            canvas.drawTextRun(text, startCharIndex, runWidthChars, startCharIndex, runWidthChars,
-                    left, y - mFontLineSpacingAndAscent, false, text.length);
+            // ✅ Fixed line (last parameter is mTextPaint instead of text.length)
+            canvas.drawTextRun(text, startCharIndex, runWidthChars,
+                    startCharIndex, runWidthChars,
+                    left, y - mFontLineSpacingAndAscent,
+                    false, mTextPaint);
         }
 
         if (savedMatrix) canvas.restore();
