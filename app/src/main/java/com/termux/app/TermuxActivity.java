@@ -209,10 +209,9 @@ public void onCreate(Bundle savedInstanceState) {
 
     TerminalView terminalView = findViewById(R.id.terminal_view);
 
-// drawable/my.png load karo
+// Load background image
 Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.my);
 terminalView.setBackgroundImage(bitmap);
-
     // Ab check karo user ne koi custom background save kiya hai kya
     String savedUri = getSharedPreferences("termux_prefs", MODE_PRIVATE)
             .getString("background_uri", null);
