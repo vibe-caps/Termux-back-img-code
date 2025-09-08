@@ -1,5 +1,9 @@
 package com.termux.view;
 
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -140,42 +144,38 @@ public final class TerminalView extends View {
             boolean scrolledWithFinger;
 
            @Override
-        protected void onDraw(Canvas canvas) {
-         if (mEmulator == null) {
-          canvas.drawColor(0XFF000000);
-         } else {
-        // 🔹 Background image draw
-          if (mBackgroundBitmap != null) {
+protected void onDraw(Canvas canvas) {
+    if (mEmulator == null) {
+        canvas.drawColor(0XFF000000);
+    } else {
+        // 🔹 Draw background image if set
+        if (mBackgroundBitmap != null) {
             Paint paint = new Paint();
-            paint.setAlpha(120); // transparency (0 = full transparent, 255 = opaque)
+            paint.setAlpha(120); // transparency (0=transparent, 255=opaque)
             canvas.drawBitmap(mBackgroundBitmap, null,
                     new android.graphics.Rect(0, 0, getWidth(), getHeight()),
                     paint);
         }
 
-        // render the terminal view and highlight any selected text
+        // Render the terminal text
         int[] sel = mDefaultSelectors;
         if (mTextSelectionCursorController != null) {
             mTextSelectionCursorController.getSelectors(sel);
         }
-
         mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3]);
 
-        // render the text selection handles
+        // Render text selection handles
         renderTextSelection();
     }
-  }
+}
 
-      // At top of class
-     private Bitmap mBackgroundBitmap;
+      private Bitmap mBackgroundBitmap;
 
-    // Setter method to load background
-      public void setBackgroundImage(Bitmap bitmap) {
+public void setBackgroundImage(Bitmap bitmap) {
     this.mBackgroundBitmap = bitmap;
     invalidate();
-      }
-
-            @Override
+}
+           @Override
             public boolean onUp(MotionEvent event) {
                 mScrollRemainder = 0.0f;
                 if (mEmulator != null && mEmulator.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText() && !scrolledWithFinger) {
@@ -866,7 +866,7 @@ public final class TerminalView extends View {
         } else {
             if (mCombiningAccent != 0) {
                 int combinedChar = KeyCharacterMap.getDeadChar(mCombiningAccent, result);
-                if (combinedChar > 0) result = combinedChar;
+6                if (combinedChar > 0) result = combinedChar;
                 mCombiningAccent = 0;
             }
             inputCodePoint(event.getDeviceId(), result, controlDown, leftAltDown);
