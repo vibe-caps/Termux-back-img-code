@@ -1,8 +1,11 @@
 package com.termux.view;
 
+
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
+import android.graphics.BitmapFactory;
 import android.graphics.Paint;
+import android.graphics.Rect;
+
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
@@ -150,12 +153,11 @@ protected void onDraw(Canvas canvas) {
     } else {
         // 🔹 Draw background image if set
         if (mBackgroundBitmap != null) {
-            Paint paint = new Paint();
-            paint.setAlpha(120); // transparency (0=transparent, 255=opaque)
-            canvas.drawBitmap(mBackgroundBitmap, null,
-                    new android.graphics.Rect(0, 0, getWidth(), getHeight()),
-                    paint);
-        }
+    Paint paint = new Paint();
+    paint.setAlpha(255); // 255 full visible, 180 semi transparent
+    canvas.drawBitmap(mBackgroundBitmap, null,
+            new Rect(0, 0, getWidth(), getHeight()), paint);
+}
 
         // Render the terminal text
         int[] sel = mDefaultSelectors;
