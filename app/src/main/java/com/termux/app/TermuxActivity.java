@@ -169,6 +169,10 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     /**
      * The {@link TermuxActivity} is in an invalid state and must not be run.
      */
+   
+       /**backround image select icon **/
+      private static final int CONTEXT_MENU_SET_BACKGROUND = 20;
+    
     private boolean mIsInvalidState;
 
     private int mNavBarHeight;
@@ -193,6 +197,52 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     private static final String ARG_ACTIVITY_RECREATED = "activity_recreated";
 
     private static final String LOG_TAG = "TermuxActivity";
+
+
+
+
+    @Override
+public void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+
+    setContentView(R.layout.activity_termux);
+
+    TerminalView terminalView = findViewById(R.id.terminal_view);
+
+    // Pehle default image lagao
+    Bitmap defaultBg = BitmapFactory.decodeResource(getResources(), R.drawable.my);
+    terminalView.setBackgroundImage(defaultBg);
+
+    // Ab check karo user ne koi custom background save kiya hai kya
+    String savedUri = getSharedPreferences("termux_prefs", MODE_PRIVATE)
+            .getString("background_uri", null);
+
+    if (savedUri != null) {
+        try {
+            Uri uri = Uri.parse(savedUri);
+            Bitmap bg = MediaStore.Images.Media.getBitmap(this.getContentResolver(), uri);
+
+            // Screen ke hisaab se scale
+            DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int screenWidth = metrics.widthPixels;
+            int screenHeight = metrics.heightPixels;
+            Bitmap scaledBitmap = Bitmap.createScaledBitmap(bg, screenWidth, screenHeight, true);
+
+            // Transparency apply
+            Paint paint = new Paint();
+            paint.setAlpha(180); // 0 = transparent, 255 = opaque
+            Bitmap mutableBitmap = scaledBitmap.copy(Bitmap.Config.ARGB_8888, true);
+            Canvas canvas = new Canvas(mutableBitmap);
+            canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+
+            terminalView.setBackgroundImage(mutableBitmap);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}    
+
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -633,6 +683,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
 
         boolean autoFillEnabled = mTerminalView.isAutoFillEnabled();
 
+        menu.add(Menu.NONE, CONTEXT_MENU_SET_BACKGROUND, Menu.NONE, "Set Background");
         menu.add(Menu.NONE, CONTEXT_MENU_SELECT_URL_ID, Menu.NONE, R.string.action_select_url);
         menu.add(Menu.NONE, CONTEXT_MENU_SHARE_TRANSCRIPT_ID, Menu.NONE, R.string.action_share_transcript);
         if (!DataUtils.isNullOrEmpty(mTerminalView.getStoredSelectedText()))
@@ -640,8 +691,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         if (autoFillEnabled)
             menu.add(Menu.NONE, CONTEXT_MENU_AUTOFILL_USERNAME, Menu.NONE, R.string.action_autofill_username);
         if (autoFillEnabled)
-            menu.add(Menu.NONE, CONTEXT_MENU_AUTOFILL_PASSWORD, Menu.NONE, R.string.action_autofill_password);
-        menu.add(Menu.NONE, CONTEXT_MENU_RESET_TERMINAL_ID, Menu.NONE, R.string.action_reset_terminal);
+            menu.add(Menu.NONE, CONTEXT_MENU_AUTOFILL_PASSWORD, Menu.NONE, R.string.action_autofill_password)       menu.add(Menu.NONE, CONTEXT_MENU_RESET_TERMINAL_ID, Menu.NONE, R.string.action_reset_terminal);
         menu.add(Menu.NONE, CONTEXT_MENU_KILL_PROCESS_ID, Menu.NONE, getResources().getString(R.string.action_kill_process, getCurrentSession().getPid())).setEnabled(currentSession.isRunning());
         menu.add(Menu.NONE, CONTEXT_MENU_STYLING_ID, Menu.NONE, R.string.action_style_terminal);
         menu.add(Menu.NONE, CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON, Menu.NONE, R.string.action_toggle_keep_screen_on).setCheckable(true).setChecked(mPreferences.shouldKeepScreenOn());
@@ -658,50 +708,117 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     }
 
     @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        TerminalSession session = getCurrentSession();
+public boolean onContextItemSelected(MenuItem item) {
+    TerminalSession session = getCurrentSession();
 
-        switch (item.getItemId()) {
-            case CONTEXT_MENU_SELECT_URL_ID:
-                mTermuxTerminalViewClient.showUrlSelection();
-                return true;
-            case CONTEXT_MENU_SHARE_TRANSCRIPT_ID:
-                mTermuxTerminalViewClient.shareSessionTranscript();
-                return true;
-            case CONTEXT_MENU_SHARE_SELECTED_TEXT:
-                mTermuxTerminalViewClient.shareSelectedText();
-                return true;
-            case CONTEXT_MENU_AUTOFILL_USERNAME:
-                mTerminalView.requestAutoFillUsername();
-                return true;
-            case CONTEXT_MENU_AUTOFILL_PASSWORD:
-                mTerminalView.requestAutoFillPassword();
-                return true;
-            case CONTEXT_MENU_RESET_TERMINAL_ID:
-                onResetTerminalSession(session);
-                return true;
-            case CONTEXT_MENU_KILL_PROCESS_ID:
-                showKillSessionDialog(session);
-                return true;
-            case CONTEXT_MENU_STYLING_ID:
-                showStylingDialog();
-                return true;
-            case CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON:
-                toggleKeepScreenOn();
-                return true;
-            case CONTEXT_MENU_HELP_ID:
-                ActivityUtils.startActivity(this, new Intent(this, HelpActivity.class));
-                return true;
-            case CONTEXT_MENU_SETTINGS_ID:
-                ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
-                return true;
-            case CONTEXT_MENU_REPORT_ID:
-                mTermuxTerminalViewClient.reportIssueFromTranscript();
-                return true;
-            default:
-                return super.onContextItemSelected(item);
+    switch (item.getItemId()) {
+        case CONTEXT_MENU_SET_BACKGROUND:
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("image/");
+            startActivityForResult(Intent.createChooser(intent, "Select Background"), 1001);
+            return true;
+
+        case CONTEXT_MENU_SELECT_URL_ID:
+            mTermuxTerminalViewClient.showUrlSelection();
+            return true;
+
+        case CONTEXT_MENU_SHARE_TRANSCRIPT_ID:
+            mTermuxTerminalViewClient.shareSessionTranscript();
+            return true;
+
+        case CONTEXT_MENU_SHARE_SELECTED_TEXT:
+            mTermuxTerminalViewClient.shareSelectedText();
+            return true;
+
+        case CONTEXT_MENU_AUTOFILL_USERNAME:
+            mTerminalView.requestAutoFillUsername();
+            return true;
+
+        case CONTEXT_MENU_AUTOFILL_PASSWORD:
+            mTerminalView.requestAutoFillPassword();
+            return true;
+
+        case CONTEXT_MENU_RESET_TERMINAL_ID:
+            onResetTerminalSession(session);
+            return true;
+
+        case CONTEXT_MENU_KILL_PROCESS_ID:
+            showKillSessionDialog(session);
+            return true;
+
+        case CONTEXT_MENU_STYLING_ID:
+            showStylingDialog();
+            return true;
+
+        case CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON:
+            toggleKeepScreenOn();
+            return true;
+
+        case CONTEXT_MENU_HELP_ID:
+            ActivityUtils.startActivity(this, new Intent(this, HelpActivity.class));
+            return true;
+
+        case CONTEXT_MENU_SETTINGS_ID:
+            ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
+            return true;
+
+        case CONTEXT_MENU_REPORT_ID:
+            mTermuxTerminalViewClient.reportIssueFromTranscript();
+            return true;
+
+        default:
+            return super.onContextItemSelected(item);
+    }
+}
+
+
+
+     @Override
+protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+
+    if (requestCode == 1001 && resultCode == RESULT_OK && data != null) {
+        Uri selectedImageUri = data.getData();
+        if (selectedImageUri != null) {
+            try {
+                // Image ko bitmap me convert karo
+                Bitmap bg = MediaStore.Images.Media.getBitmap(this.getContentResolver(), selectedImageUri);
+
+                // Screen ke hisaab se scale karo
+                DisplayMetrics metrics = getResources().getDisplayMetrics();
+                int screenWidth = metrics.widthPixels;
+                int screenHeight = metrics.heightPixels;
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(bg, screenWidth, screenHeight, true);
+
+                // Transparency apply karo
+                Paint paint = new Paint();
+                paint.setAlpha(180); // 0 = transparent, 255 = opaque
+                Bitmap mutableBitmap = scaledBitmap.copy(Bitmap.Config.ARGB_8888, true);
+                Canvas canvas = new Canvas(mutableBitmap);
+                canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+
+                // Background set karo
+                mTerminalView.setBackgroundImage(mutableBitmap);
+
+                // URI ko permanent save karo
+                getSharedPreferences("termux_prefs", MODE_PRIVATE)
+                        .edit()
+                        .putString("background_uri", selectedImageUri.toString())
+                        .apply();
+
+                Toast.makeText(this, "Background set ho gaya ✅", Toast.LENGTH_SHORT).show();
+
+            } catch (IOException e) {
+                Toast.makeText(this, "Background set karne me error aayi!", Toast.LENGTH_SHORT).show();
+                e.printStackTrace();
+            }
         }
     }
+} 
+ 
+
+
+
 
     @Override
     public void onContextMenuClosed(Menu menu) {
