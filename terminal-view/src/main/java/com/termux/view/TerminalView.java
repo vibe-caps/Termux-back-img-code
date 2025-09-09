@@ -868,7 +868,7 @@ public void setBackgroundImage(Bitmap bitmap) {
         } else {
             if (mCombiningAccent != 0) {
                 int combinedChar = KeyCharacterMap.getDeadChar(mCombiningAccent, result);
-6                if (combinedChar > 0) result = combinedChar;
+                if (combinedChar > 0) result = combinedChar;
                 mCombiningAccent = 0;
             }
             inputCodePoint(event.getDeviceId(), result, controlDown, leftAltDown);
