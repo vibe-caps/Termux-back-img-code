@@ -1,11 +1,3 @@
-/xname: Build Debug APK
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,6 +14,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;21.4.7075529"
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
