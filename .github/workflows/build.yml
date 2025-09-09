@@ -1,4 +1,4 @@
-name: Build Debug APK
+/xname: Build Debug APK
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: termux-app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
