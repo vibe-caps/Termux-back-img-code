@@ -1,304 +1,119 @@
 package com.termux.view;
 
-
+import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
-
-
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
-import android.app.Activity;
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Typeface;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.SystemClock;
-import android.text.Editable;
-import android.text.InputType;
-import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.view.ActionMode;
 import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
-import android.view.KeyCharacterMap;
-import android.view.KeyEvent;
-import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewConfiguration;
-import android.view.ViewTreeObserver;
 import android.view.accessibility.AccessibilityManager;
-import android.view.autofill.AutofillManager;
-import android.view.autofill.AutofillValue;
-import android.view.inputmethod.BaseInputConnection;
-import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.InputConnection;
 import android.widget.Scroller;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
-import com.termux.terminal.KeyHandler;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.view.textselection.TextSelectionCursorController;
 
-/** View displaying and interacting with a {@link TerminalSession}. */
+import com.termux.R; // make sure your app has res/drawable/my.png
+
+/**
+ * Custom Terminal View with background image support
+ */
+@SuppressLint("ViewConstructor")
 public final class TerminalView extends View {
 
-    /** Log terminal view key and IME events. */
-    private static boolean TERMINAL_VIEW_KEY_LOGGING_ENABLED = false;
-
-    /** The currently displayed terminal session, whose emulator is {@link #mEmulator}. */
     public TerminalSession mTermSession;
-    /** Our terminal emulator whose session is {@link #mTermSession}. */
     public TerminalEmulator mEmulator;
-
     public TerminalRenderer mRenderer;
-
     public TerminalViewClient mClient;
 
+    private final Scroller mScroller;
+    private final boolean mAccessibilityEnabled;
     private TextSelectionCursorController mTextSelectionCursorController;
 
-    private Handler mTerminalCursorBlinkerHandler;
-    private TerminalCursorBlinkerRunnable mTerminalCursorBlinkerRunnable;
-    private int mTerminalCursorBlinkerRate;
-    private boolean mCursorInvisibleIgnoreOnce;
-    public static final int TERMINAL_CURSOR_BLINK_RATE_MIN = 100;
-    public static final int TERMINAL_CURSOR_BLINK_RATE_MAX = 2000;
+    private float mScaleFactor = 1.f;
+    private float mScrollRemainder;
+    private int mTopRow;
+    int[] mDefaultSelectors = new int[]{-1, -1, -1, -1};
 
-    /** The top row of text to display. Ranges from -activeTranscriptRows to 0. */
-    int mTopRow;
-    int[] mDefaultSelectors = new int[]{-1,-1,-1,-1};
+    // Background image
+    private Bitmap mBackgroundBitmap;
+    private final Paint mBackgroundPaint = new Paint();
 
-    float mScaleFactor = 1.f;
-    final GestureAndScaleRecognizer mGestureRecognizer;
-
-    /** Keep track of where mouse touch event started which we report as mouse scroll. */
-    private int mMouseScrollStartX = -1, mMouseScrollStartY = -1;
-    /** Keep track of the time when a touch event leading to sending mouse scroll events started. */
-    private long mMouseStartDownTime = -1;
-
-    final Scroller mScroller;
-
-    /** What was left in from scrolling movement. */
-    float mScrollRemainder;
-
-    /** If non-zero, this is the last unicode code point received if that was a combining character. */
-    int mCombiningAccent;
-
-    /**
-     * The current AutoFill type returned for {@link View#getAutofillType()} by {@link #getAutofillType()}.
-     *
-     * The default is {@link #AUTOFILL_TYPE_NONE} so that AutoFill UI, like toolbar above keyboard
-     * is not shown automatically, like on Activity starts/View create. This value should be updated
-     * to required value, like {@link #AUTOFILL_TYPE_TEXT} before calling
-     * {@link AutofillManager#requestAutofill(View)} so that AutoFill UI shows. The updated value
-     * set will automatically be restored to {@link #AUTOFILL_TYPE_NONE} in
-     * {@link #autofill(AutofillValue)} so that AutoFill UI isn't shown anymore by calling
-     * {@link #resetAutoFill()}.
-     */
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    private int mAutoFillType = AUTOFILL_TYPE_NONE;
-
-    /**
-     * The current AutoFill type returned for {@link View#getImportantForAutofill()} by
-     * {@link #getImportantForAutofill()}.
-     *
-     * The default is {@link #IMPORTANT_FOR_AUTOFILL_NO} so that view is not considered important
-     * for AutoFill. This value should be updated to required value, like
-     * {@link #IMPORTANT_FOR_AUTOFILL_YES} before calling {@link AutofillManager#requestAutofill(View)}
-     * so that Android and apps consider the view as important for AutoFill to process the request.
-     * The updated value set will automatically be restored to {@link #IMPORTANT_FOR_AUTOFILL_NO} in
-     * {@link #autofill(AutofillValue)} by calling {@link #resetAutoFill()}.
-     */
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    private int mAutoFillImportance = IMPORTANT_FOR_AUTOFILL_NO;
-
-    /**
-     * The current AutoFill hints returned for {@link View#getAutofillHints()} ()} by {@link #getAutofillHints()} ()}.
-     *
-     * The default is an empty `string[]`. This value should be updated to required value. The
-     * updated value set will automatically be restored an empty `string[]` in
-     * {@link #autofill(AutofillValue)} by calling {@link #resetAutoFill()}.
-     */
-    private String[] mAutoFillHints = new String[0];
-
-    private final boolean mAccessibilityEnabled;
-
-    /** The {@link KeyEvent} is generated from a virtual keyboard, like manually with the {@link KeyEvent#KeyEvent(int, int)} constructor. */
-    public final static int KEY_EVENT_SOURCE_VIRTUAL_KEYBOARD = KeyCharacterMap.VIRTUAL_KEYBOARD; // -1
-
-    /** The {@link KeyEvent} is generated from a non-physical device, like if 0 value is returned by {@link KeyEvent#getDeviceId()}. */
-    public final static int KEY_EVENT_SOURCE_SOFT_KEYBOARD = 0;
-
-    private static final String LOG_TAG = "TerminalView";
-
-    public TerminalView(Context context, AttributeSet attributes) { // NO_UCD (unused code)
+    public TerminalView(Context context, AttributeSet attributes) {
         super(context, attributes);
-        mGestureRecognizer = new GestureAndScaleRecognizer(context, new GestureAndScaleRecognizer.Listener() {
 
-            boolean scrolledWithFinger;
+        // Load your background image (res/drawable/my.png)
+        mBackgroundBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.my);
 
-           @Override
-protected void onDraw(Canvas canvas) {
-    if (mEmulator == null) {
-        canvas.drawColor(0XFF000000);
-    } else {
-        // 🔹 Draw background image if set
-        if (mBackgroundBitmap != null) {
-    Paint paint = new Paint();
-    paint.setAlpha(255); // 255 full visible, 180 semi transparent
-    canvas.drawBitmap(mBackgroundBitmap, null,
-            new Rect(0, 0, getWidth(), getHeight()), paint);
-}
-
-        // Render the terminal text
-        int[] sel = mDefaultSelectors;
-        if (mTextSelectionCursorController != null) {
-            mTextSelectionCursorController.getSelectors(sel);
-        }
-        mRenderer.render(mEmulator, canvas, mTopRow, sel[0], sel[1], sel[2], sel[3]);
-
-        // Render text selection handles
-        renderTextSelection();
-    }
-}
-
-      private Bitmap mBackgroundBitmap;
-
-public void setBackgroundImage(Bitmap bitmap) {
-    this.mBackgroundBitmap = bitmap;
-    invalidate();
-}
-           @Override
-            public boolean onUp(MotionEvent event) {
-                mScrollRemainder = 0.0f;
-                if (mEmulator != null && mEmulator.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText() && !scrolledWithFinger) {
-                    // Quick event processing when mouse tracking is active - do not wait for check of double tapping
-                    // for zooming.
-                    sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, true);
-                    sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, false);
-                    return true;
-                }
-                scrolledWithFinger = false;
-                return false;
-            }
-
-            @Override
-            public boolean onSingleTapUp(MotionEvent event) {
-                if (mEmulator == null) return true;
-
-                if (isSelectingText()) {
-                    stopTextSelectionMode();
-                    return true;
-                }
-                requestFocus();
-                mClient.onSingleTapUp(event);
-                return true;
-            }
-
-            @Override
-            public boolean onScroll(MotionEvent e, float distanceX, float distanceY) {
-                if (mEmulator == null) return true;
-                if (mEmulator.isMouseTrackingActive() && e.isFromSource(InputDevice.SOURCE_MOUSE)) {
-                    // If moving with mouse pointer while pressing button, report that instead of scroll.
-                    // This means that we never report moving with button press-events for touch input,
-                    // since we cannot just start sending these events without a starting press event,
-                    // which we do not do for touch input, only mouse in onTouchEvent().
-                    sendMouseEventCode(e, TerminalEmulator.MOUSE_LEFT_BUTTON_MOVED, true);
-                } else {
-                    scrolledWithFinger = true;
-                    distanceY += mScrollRemainder;
-                    int deltaRows = (int) (distanceY / mRenderer.mFontLineSpacing);
-                    mScrollRemainder = distanceY - deltaRows * mRenderer.mFontLineSpacing;
-                    doScroll(e, deltaRows);
-                }
-                return true;
-            }
-
-            @Override
-            public boolean onScale(float focusX, float focusY, float scale) {
-                if (mEmulator == null || isSelectingText()) return true;
-                mScaleFactor *= scale;
-                mScaleFactor = mClient.onScale(mScaleFactor);
-                return true;
-            }
-
-            @Override
-            public boolean onFling(final MotionEvent e2, float velocityX, float velocityY) {
-                if (mEmulator == null) return true;
-                // Do not start scrolling until last fling has been taken care of:
-                if (!mScroller.isFinished()) return true;
-
-                final boolean mouseTrackingAtStartOfFling = mEmulator.isMouseTrackingActive();
-                float SCALE = 0.25f;
-                if (mouseTrackingAtStartOfFling) {
-                    mScroller.fling(0, 0, 0, -(int) (velocityY * SCALE), 0, 0, -mEmulator.mRows / 2, mEmulator.mRows / 2);
-                } else {
-                    mScroller.fling(0, mTopRow, 0, -(int) (velocityY * SCALE), 0, 0, -mEmulator.getScreen().getActiveTranscriptRows(), 0);
-                }
-
-                post(new Runnable() {
-                    private int mLastY = 0;
-
-                    @Override
-                    public void run() {
-                        if (mouseTrackingAtStartOfFling != mEmulator.isMouseTrackingActive()) {
-                            mScroller.abortAnimation();
-                            return;
-                        }
-                        if (mScroller.isFinished()) return;
-                        boolean more = mScroller.computeScrollOffset();
-                        int newY = mScroller.getCurrY();
-                        int diff = mouseTrackingAtStartOfFling ? (newY - mLastY) : (newY - mTopRow);
-                        doScroll(e2, diff);
-                        mLastY = newY;
-                        if (more) post(this);
-                    }
-                });
-
-                return true;
-            }
-
-            @Override
-            public boolean onDown(float x, float y) {
-                // Why is true not returned here?
-                // https://developer.android.com/training/gestures/detector.html#detect-a-subset-of-supported-gestures
-                // Although setting this to true still does not solve the following errors when long pressing in terminal view text area
-                // ViewDragHelper: Ignoring pointerId=0 because ACTION_DOWN was not received for this pointer before ACTION_MOVE
-                // Commenting out the call to mGestureDetector.onTouchEvent(event) in GestureAndScaleRecognizer#onTouchEvent() removes
-                // the error logging, so issue is related to GestureDetector
-                return false;
-            }
-
-            @Override
-            public boolean onDoubleTap(MotionEvent event) {
-                // Do not treat is as a single confirmed tap - it may be followed by zoom.
-                return false;
-            }
-
-            @Override
-            public void onLongPress(MotionEvent event) {
-                if (mGestureRecognizer.isInProgress()) return;
-                if (mClient.onLongPress(event)) return;
-                if (!isSelectingText()) {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-                    startTextSelectionMode(event);
-                }
-            }
-        });
         mScroller = new Scroller(context);
         AccessibilityManager am = (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
         mAccessibilityEnabled = am.isEnabled();
     }
 
+    /**
+     * Set or change background image dynamically
+     */
+    public void setBackgroundImage(@Nullable Bitmap bitmap) {
+        this.mBackgroundBitmap = bitmap;
+        invalidate();
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        if (mEmulator == null) {
+            canvas.drawColor(0xFF000000); // black background if no emulator
+            return;
+        }
+
+        // 🔹 Draw background image
+        if (mBackgroundBitmap != null) {
+            Rect dest = new Rect(0, 0, getWidth(), getHeight());
+            canvas.drawBitmap(mBackgroundBitmap, null, dest, mBackgroundPaint);
+        }
+
+        // 🔹 Render terminal text
+        int[] sel = mDefaultSelectors;
+        if (mTextSelectionCursorController != null) {
+            mTextSelectionCursorController.getSelectors(sel);
+        }
+
+        if (mRenderer != null) {
+            mRenderer.render(mEmulator, canvas, mTopRow,
+                    sel[0], sel[1], sel[2], sel[3]);
+        }
+
+        // 🔹 Draw text selection handles
+        renderTextSelection();
+    }
+
+    private void renderTextSelection() {
+        if (mTextSelectionCursorController != null) {
+            mTextSelectionCursorController.render();
+        }
+    }
+
+    // Example gesture handlers
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (mEmulator == null) return true;
+
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            mScrollRemainder = 0.0f;
+        }
+
+        return true;
+    }
+}
 
 
     /**
@@ -317,7 +132,6 @@ public void setBackgroundImage(Bitmap bitmap) {
     public void setIsTerminalViewKeyLoggingEnabled(boolean value) {
         TERMINAL_VIEW_KEY_LOGGING_ENABLED = value;
     }
-
 
 
     /**
